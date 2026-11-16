@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mein Portfolio</title>
+
+  <!-- ===== AUSSEHEN (CSS) ===== -->
+  <style>
+    /* Farben an einer Stelle, damit man sie leicht ändern kann */
+    :root {
+      --hintergrund: #0f1115;
+      --karte: #1a1d24;
+      --rand: #2a2f3a;
+      --text: #e8eaed;
+      --text-leise: #9aa0a6;
+      --gewinn: #34c47c;
+      --verlust: #ff5c5c;
+      --akzent: #4c8dff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--hintergrund);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 17px;
+      line-height: 1.4;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 16px 64px;
+    }
+
+    h1 { font-size: 28px; margin: 0 0 20px; }
+    h2 { font-size: 20px; margin: 32px 0 12px; }
+
+    .karte {
+      background: var(--karte);
+      border: 1px solid var(--rand);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    /* --- Übersicht oben (4 Kacheln) --- */
+    .uebersicht {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .kachel-titel { color: var(--text-leise); font-size: 14px; }
+    .kachel-wert { font-size: 24px; font-weight: 600; margin-top: 4px; }
+
+    /* --- Eingabe-Formular --- */
+    form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+    label { display: block; color: var(--text-leise); font-size: 14px; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      min-height: 48px;           /* groß genug für den Finger auf dem iPad */
+      padding: 10px 12px;
+      font-size: 17px;            /* verhindert automatisches Zoomen auf iOS */
+      color: var(--text);
+      background: var(--hintergrund);
+      border: 1px solid var(--rand);
+      border-radius: 10px;
+    }
+    input:focus { outline: 2px solid var(--akzent); border-color: transparent; }
+
+    button {
+      min-height: 48px;
+      padding: 10px 18px;
+      font-size: 17px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .knopf-haupt { background: var(--akzent); color: white; }
+    .knopf-loeschen {
+      background: transparent;
+      color: var(--verlust);
+      border: 1px solid var(--rand);
+      min-height: 44px;
+      padding: 8px 14px;
+      font-size: 15px;
+    }
+
+    .fehler { color: var(--verlust); margin: 10px 0 0; min-height: 1em; }
+
+    /* --- Liste der Aktien --- */
+    .aktie { margin-bottom: 12px; }
+    .aktie-kopf {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .aktie-name { font-size: 20px; font-weight: 600; word-break: break-word; }
+    .werte {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);   /* 2 ordentliche Zeilen à 3 */
+      gap: 12px;
+    }
+    @media (max-width: 500px) {
+      .werte { grid-template-columns: repeat(2, 1fr); }  /* Handy: 2 Spalten */
+    }
+    .wert-titel { color: var(--text-leise); font-size: 13px; }
+    .wert-zahl { font-size: 18px; font-weight: 500; }
+    .kurs-feld { min-height: 44px; padding: 6px 10px; }
+
+    .plus  { color: var(--gewinn); }
+    .minus { color: var(--verlust); }
+
+    .leer { color: var(--text-leise); text-align: center; padding: 32px 16px; }
+    .hinweis { color: var(--text-leise); font-size: 14px; margin-top: 24px; }
+  </style>
+</head>
+<body>
+<main>
+
+  <h1>Mein Portfolio</h1>
+
+  <!-- ===== ÜBERSICHT ===== -->
+  <section class="uebersicht">
+    <div class="karte">
+      <div class="kachel-titel">Gesamtwert</div>
+      <div class="kachel-wert" id="gesamtwert">–</div>
+    </div>
+    <div class="karte">
+      <div class="kachel-titel">Investiert</div>
+      <div class="kachel-wert" id="investiert">–</div>
+    </div>
+    <div class="karte">
+      <div class="kachel-titel">Gewinn / Verlust</div>
+      <div class="kachel-wert" id="gesamt-gv">–</div>
+    </div>
+    <div class="karte">
+      <div class="kachel-titel">Rendite</div>
+      <div class="kachel-wert" id="gesamt-rendite">–</div>
+    </div>
+  </section>
+
+  <!-- ===== NEUE AKTIE EINTRAGEN ===== -->
+  <h2>Aktie hinzufügen</h2>
+  <div class="karte">
+    <form id="formular">
+      <div>
+        <label for="name">Name</label>
+        <input id="name" type="text" placeholder="z. B. Apple" autocomplete="off">
+      </div>
+      <div>
+        <label for="stueck">Stückzahl</label>
+        <input id="stueck" type="text" inputmode="decimal" placeholder="10">
+      </div>
+      <div>
+        <label for="kaufpreis">Kaufpreis (€ pro Stück)</label>
+        <input id="kaufpreis" type="text" inputmode="decimal" placeholder="150,00">
+      </div>
+      <div>
+        <label for="kurs">Aktueller Kurs (€)</label>
+        <input id="kurs" type="text" inputmode="decimal" placeholder="175,50">
+      </div>
+      <button type="submit" class="knopf-haupt">Hinzufügen</button>
+    </form>
+    <p class="fehler" id="fehler"></p>
+  </div>
+
+  <!-- ===== MEINE AKTIEN ===== -->
+  <h2>Meine Aktien</h2>
+  <div id="liste"></div>
+
+  <p class="hinweis">
+    Deine Daten werden nur in diesem Browser auf diesem Gerät gespeichert –
+    nicht im Internet und nicht im Code.
+  </p>
+
+</main>
+
+<!-- ===== LOGIK (JavaScript) ===== -->
+<script>
+  // Unter diesem Namen legt der Browser die Daten ab.
+  const SPEICHER_SCHLUESSEL = "portfolio-aktien";
+
+  // ---------- 1. Daten laden & speichern ----------
+
+  function ladeAktien() {
+    try {
+      const text = localStorage.getItem(SPEICHER_SCHLUESSEL);
+      return text ? JSON.parse(text) : [];
+    } catch (e) {
+      return []; // z. B. im privaten Modus: dann starten wir einfach leer
+    }
+  }
+
+  function speichereAktien() {
+    try {
+      localStorage.setItem(SPEICHER_SCHLUESSEL, JSON.stringify(aktien));
+    } catch (e) {
+      zeigeFehler("Speichern hat nicht geklappt (privater Modus?).");
+    }
+  }
+
+  let aktien = ladeAktien();
+
+  // ---------- 2. Hilfsfunktionen ----------
+
+  // Erlaubt deutsche Schreibweise: "1.234,56" -> 1234.56
+  function leseZahl(text) {
+    const sauber = String(text).trim().replace(/\./g, "").replace(",", ".");
+    if (sauber === "") return NaN;
+    return Number(sauber);
+  }
+
+  const euroFormat = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+  const prozentFormat = new Intl.NumberFormat("de-DE", {
+    style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+
+  function euro(zahl) { return euroFormat.format(zahl); }
+
+  // Zeigt + oder − vor der Zahl, damit man es sofort sieht
+  function mitVorzeichen(text, zahl) { return (zahl > 0 ? "+" : "") + text; }
+
+  function farbe(element, zahl) {
+    element.classList.remove("plus", "minus");
+    if (zahl > 0) element.classList.add("plus");
+    if (zahl < 0) element.classList.add("minus");
+  }
+
+  function zeigeFehler(text) { document.getElementById("fehler").textContent = text; }
+
+  // ---------- 3. Rechnen ----------
+
+  function berechne(aktie) {
+    const investiert = aktie.stueck * aktie.kaufpreis;
+    const wert = aktie.stueck * aktie.kurs;
+    const gewinn = wert - investiert;
+    const rendite = investiert > 0 ? gewinn / investiert : 0;
+    return { investiert, wert, gewinn, rendite };
+  }
+
+  // ---------- 4. Anzeigen ----------
+
+  function zeigeAlles() {
+    zeigeUebersicht();
+    zeigeListe();
+  }
+
+  function zeigeUebersicht() {
+    let investiert = 0;
+    let wert = 0;
+    for (const aktie of aktien) {
+      const r = berechne(aktie);
+      investiert += r.investiert;
+      wert += r.wert;
+    }
+    const gewinn = wert - investiert;
+    const rendite = investiert > 0 ? gewinn / investiert : 0;
+
+    document.getElementById("gesamtwert").textContent = euro(wert);
+    document.getElementById("investiert").textContent = euro(investiert);
+
+    const gv = document.getElementById("gesamt-gv");
+    gv.textContent = mitVorzeichen(euro(gewinn), gewinn);
+    farbe(gv, gewinn);
+
+    const re = document.getElementById("gesamt-rendite");
+    re.textContent = mitVorzeichen(prozentFormat.format(rendite), rendite);
+    farbe(re, rendite);
+  }
+
+  // Baut ein kleines "Titel + Zahl"-Kästchen
+  function wertKasten(titel, inhalt, farbZahl) {
+    const kasten = document.createElement("div");
+    const t = document.createElement("div");
+    t.className = "wert-titel";
+    t.textContent = titel;
+    kasten.appendChild(t);
+    if (typeof inhalt === "string") {
+      const z = document.createElement("div");
+      z.className = "wert-zahl";
+      z.textContent = inhalt;
+      if (farbZahl !== undefined) farbe(z, farbZahl);
+      kasten.appendChild(z);
+    } else {
+      kasten.appendChild(inhalt); // z. B. ein Eingabefeld
+    }
+    return kasten;
+  }
+
+  function zeigeListe() {
+    const liste = document.getElementById("liste");
+    liste.innerHTML = "";
+
+    if (aktien.length === 0) {
+      liste.innerHTML = '<div class="karte leer">Noch keine Aktien eingetragen.</div>';
+      return;
+    }
+
+    aktien.forEach((aktie, index) => {
+      const r = berechne(aktie);
+
+      const karte = document.createElement("div");
+      karte.className = "karte aktie";
+
+      // Kopfzeile: Name + Löschen-Knopf
+      const kopf = document.createElement("div");
+      kopf.className = "aktie-kopf";
+      const name = document.createElement("div");
+      name.className = "aktie-name";
+      name.textContent = aktie.name; // textContent = sicher, kein HTML
+      const loeschen = document.createElement("button");
+      loeschen.className = "knopf-loeschen";
+      loeschen.textContent = "Löschen";
+      loeschen.addEventListener("click", () => {
+        if (confirm(`„${aktie.name}“ wirklich löschen?`)) {
+          aktien.splice(index, 1);
+          speichereAktien();
+          zeigeAlles();
+        }
+      });
+      kopf.append(name, loeschen);
+
+      // Aktueller Kurs ist direkt änderbar (ändert sich ja ständig)
+      const kursFeld = document.createElement("input");
+      kursFeld.className = "kurs-feld";
+      kursFeld.inputMode = "decimal";
+      kursFeld.value = String(aktie.kurs).replace(".", ",");
+      kursFeld.addEventListener("change", () => {
+        const neu = leseZahl(kursFeld.value);
+        if (isNaN(neu) || neu < 0) {
+          kursFeld.value = String(aktie.kurs).replace(".", ",");
+          return;
+        }
+        aktie.kurs = neu;
+        speichereAktien();
+        zeigeAlles();
+      });
+
+      const werte = document.createElement("div");
+      werte.className = "werte";
+      werte.append(
+        wertKasten("Stückzahl", aktie.stueck.toLocaleString("de-DE")),
+        wertKasten("Kaufpreis", euro(aktie.kaufpreis)),
+        wertKasten("Aktueller Kurs (€)", kursFeld),
+        wertKasten("Wert", euro(r.wert)),
+        wertKasten("Gewinn / Verlust", mitVorzeichen(euro(r.gewinn), r.gewinn), r.gewinn),
+        wertKasten("Rendite", mitVorzeichen(prozentFormat.format(r.rendite), r.rendite), r.rendite)
+      );
+
+      karte.append(kopf, werte);
+      liste.appendChild(karte);
+    });
+  }
+
+  // ---------- 5. Formular: neue Aktie ----------
+
+  document.getElementById("formular").addEventListener("submit", (ereignis) => {
+    ereignis.preventDefault(); // Seite nicht neu laden
+
+    const name = document.getElementById("name").value.trim();
+    const stueck = leseZahl(document.getElementById("stueck").value);
+    const kaufpreis = leseZahl(document.getElementById("kaufpreis").value);
+    const kurs = leseZahl(document.getElementById("kurs").value);
+
+    if (!name) return zeigeFehler("Bitte einen Namen eingeben.");
+    if (isNaN(stueck) || stueck <= 0) return zeigeFehler("Stückzahl muss eine Zahl größer 0 sein.");
+    if (isNaN(kaufpreis) || kaufpreis < 0) return zeigeFehler("Kaufpreis muss eine Zahl sein.");
+    if (isNaN(kurs) || kurs < 0) return zeigeFehler("Aktueller Kurs muss eine Zahl sein.");
+
+    zeigeFehler("");
+    aktien.push({ name, stueck, kaufpreis, kurs });
+    speichereAktien();
+    zeigeAlles();
+    ereignis.target.reset();
+    document.getElementById("name").focus();
+  });
+
+  // ---------- Start ----------
+  zeigeAlles();
+</script>
+</body>
+</html>
