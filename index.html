@@ -121,6 +121,19 @@
     .plus  { color: var(--gewinn); }
     .minus { color: var(--verlust); }
 
+    /* --- Sicherungskopie --- */
+    .knopf-zweit {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--rand);
+    }
+    .sicherung-knoepfe { display: flex; flex-wrap: wrap; gap: 12px; }
+    .sicherung-knoepfe button { flex: 1 1 200px; }
+    .sicherung-info { color: var(--text-leise); font-size: 14px; margin: 12px 0 0; }
+    .meldung { margin: 10px 0 0; min-height: 1em; }
+    .meldung.ok { color: var(--gewinn); }
+    .meldung.fehler { color: var(--verlust); }
+
     .leer { color: var(--text-leise); text-align: center; padding: 32px 16px; }
     .hinweis { color: var(--text-leise); font-size: 14px; margin-top: 24px; }
   </style>
@@ -178,6 +191,19 @@
   <!-- ===== MEINE AKTIEN ===== -->
   <h2>Meine Aktien</h2>
   <div id="liste"></div>
+
+  <!-- ===== SICHERUNGSKOPIE ===== -->
+  <h2>Sicherungskopie</h2>
+  <div class="karte">
+    <div class="sicherung-knoepfe">
+      <button type="button" class="knopf-zweit" id="sichern">Sicherung erstellen</button>
+      <button type="button" class="knopf-zweit" id="laden">Sicherung laden</button>
+    </div>
+    <!-- Unsichtbares Feld zur Dateiauswahl; wird vom Knopf "Sicherung laden" geöffnet -->
+    <input type="file" id="datei" accept=".json,application/json" hidden>
+    <p class="sicherung-info" id="letzte-sicherung"></p>
+    <p class="meldung" id="sicherung-meldung"></p>
+  </div>
 
   <p class="hinweis">
     Deine Daten werden nur in diesem Browser auf diesem Gerät gespeichert –
@@ -386,8 +412,111 @@
     document.getElementById("name").focus();
   });
 
+  // ---------- 6. Sicherungskopie ----------
+
+  const LETZTE_SICHERUNG_SCHLUESSEL = "portfolio-letzte-sicherung";
+
+  function sicherungMeldung(text, art) {
+    const el = document.getElementById("sicherung-meldung");
+    el.textContent = text;
+    el.className = "meldung " + (art || "");
+  }
+
+  function zeigeLetzteSicherung() {
+    let datum = null;
+    try { datum = localStorage.getItem(LETZTE_SICHERUNG_SCHLUESSEL); } catch (e) {}
+    document.getElementById("letzte-sicherung").textContent = datum
+      ? "Letzte Sicherung: " + new Date(datum).toLocaleString("de-DE")
+      : "Noch keine Sicherung erstellt.";
+  }
+
+  function merkeSicherung() {
+    try { localStorage.setItem(LETZTE_SICHERUNG_SCHLUESSEL, new Date().toISOString()); } catch (e) {}
+    zeigeLetzteSicherung();
+  }
+
+  // Sicherung erstellen: Daten als Datei, z. B. in die Dateien-App
+  document.getElementById("sichern").addEventListener("click", async () => {
+    if (aktien.length === 0) return sicherungMeldung("Es gibt noch nichts zu sichern.", "fehler");
+
+    const inhalt = JSON.stringify({
+      app: "portfolio-tracker",
+      version: 1,
+      erstellt: new Date().toISOString(),
+      aktien: aktien
+    }, null, 2);
+    const heute = new Date().toISOString().slice(0, 10); // z. B. 2026-11-17
+    const dateiname = `portfolio-sicherung-${heute}.json`;
+    const datei = new File([inhalt], dateiname, { type: "application/json" });
+
+    // Auf dem iPad: das Teilen-Menü öffnen ("In Dateien sichern")
+    if (navigator.canShare && navigator.canShare({ files: [datei] })) {
+      try {
+        await navigator.share({ files: [datei], title: dateiname });
+        merkeSicherung();
+        sicherungMeldung("Sicherung erstellt.", "ok");
+      } catch (e) {
+        // Abgebrochen: kein Fehler, einfach nichts tun
+        if (e.name !== "AbortError") sicherungMeldung("Sicherung hat nicht geklappt.", "fehler");
+      }
+      return;
+    }
+
+    // Auf anderen Geräten (z. B. Computer): als Download speichern
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(datei);
+    link.download = dateiname;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    merkeSicherung();
+    sicherungMeldung("Sicherung heruntergeladen.", "ok");
+  });
+
+  // Prüft, ob eine Aktie aus der Datei sinnvolle Werte hat
+  function istGueltigeAktie(a) {
+    return a && typeof a.name === "string" && a.name.trim() !== "" &&
+      [a.stueck, a.kaufpreis, a.kurs].every(z => typeof z === "number" && isFinite(z) && z >= 0) &&
+      a.stueck > 0;
+  }
+
+  // Sicherung laden: Datei auswählen und Daten ersetzen
+  document.getElementById("laden").addEventListener("click", () => {
+    document.getElementById("datei").click();
+  });
+
+  document.getElementById("datei").addEventListener("change", async (ereignis) => {
+    const datei = ereignis.target.files[0];
+    ereignis.target.value = ""; // damit dieselbe Datei später nochmal gewählt werden kann
+    if (!datei) return;
+
+    let daten;
+    try {
+      daten = JSON.parse(await datei.text());
+    } catch (e) {
+      return sicherungMeldung("Diese Datei ist keine gültige Sicherung.", "fehler");
+    }
+
+    const liste = Array.isArray(daten) ? daten : daten && daten.aktien;
+    if (!Array.isArray(liste) || !liste.every(istGueltigeAktie)) {
+      return sicherungMeldung("Diese Datei ist keine gültige Sicherung.", "fehler");
+    }
+
+    const frage = aktien.length > 0
+      ? `Sicherung mit ${liste.length} Aktie(n) laden?\nDeine aktuellen ${aktien.length} Aktie(n) werden dabei ersetzt.`
+      : `Sicherung mit ${liste.length} Aktie(n) laden?`;
+    if (!confirm(frage)) return;
+
+    aktien = liste.map(a => ({ name: a.name.trim(), stueck: a.stueck, kaufpreis: a.kaufpreis, kurs: a.kurs }));
+    speichereAktien();
+    zeigeAlles();
+    sicherungMeldung(`Sicherung geladen: ${aktien.length} Aktie(n).`, "ok");
+  });
+
   // ---------- Start ----------
   zeigeAlles();
+  zeigeLetzteSicherung();
 </script>
 </body>
 </html>
